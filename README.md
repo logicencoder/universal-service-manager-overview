@@ -1,5 +1,7 @@
 # Universal Service Manager (USM)
 
+![USM — Services grid (main view)](assets/screenshot-grid.png)
+
 **Universal Service Manager** is a single-process Python control plane with a browser dashboard for running a large fleet of services on one Linux host — start/stop/restart, auto-recovery, live metrics, log tail, systemd control, Docker/Compose, and firewall editing without juggling SSH sessions.
 
 Private source: [logicencoder/universal-service-manager](https://github.com/logicencoder/universal-service-manager). Service definitions live in `services.yaml` in the private repo — not in this overview.
@@ -44,23 +46,59 @@ Every managed service is declared in **`services.yaml`** (command, type, port, d
 
 ## Screenshots
 
-### Grid View
-![Grid View](assets/screenshot-grid.png)
+### Services (main / grid view)
 
-### Services overview
-![Services Overview](assets/screenshot-overview.png)
+Grouped service cards with CPU/MEM sparklines, ports, restart counts, and per-card start/stop/restart/logs.
 
-### System resources
-![System Resources](assets/screenshot-resources.png)
+![Services — grouped grid view](assets/screenshot-grid.png)
 
-### Log monitor
-![Log Monitor](assets/screenshot-logs.png)
+### Overview
 
-### Systemd
-![Systemd](assets/screenshot-systemd.png)
+Dense table of all managed services with CPU, memory, uptime, and row actions.
+
+![Overview — services table](assets/screenshot-overview.png)
+
+### Resources
+
+Host CPU (per-core), memory, disk I/O, network, and live service CPU/MEM ranking.
+
+![Resources — system and service metrics](assets/screenshot-resources.png)
 
 ### Processes
-![Processes](assets/screenshot-processes.png)
+
+htop-like process list with filter, sort, and **+ Monitor** for unmanaged PIDs.
+
+![Processes — live process table](assets/screenshot-processes.png)
+
+### Logs
+
+Live log tail with service selector, level filters, search, pause, and download.
+
+![Logs — streaming log monitor](assets/screenshot-logs.png)
+
+### Docker
+
+Containers, images, networks, volumes, compose stacks, and in-container exec.
+
+![Docker — container and image management](assets/screenshot-docker.png)
+
+### Systemd
+
+Full systemd unit list with autostart toggles, start/stop/restart, and journal access.
+
+![Systemd — unit control panel](assets/screenshot-systemd.png)
+
+### Startup
+
+Boot-enabled units with USM / crucial / optional priority and enable/disable at boot.
+
+![Startup — boot autostart configuration](assets/screenshot-startup.png)
+
+### Settings
+
+Dashboard appearance, polling, alerts, log monitor, Docker refresh, and export/import.
+
+![Settings — dashboard preferences](assets/screenshot-settings.png)
 
 See [REPOS.md](REPOS.md).
 

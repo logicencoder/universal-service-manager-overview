@@ -1,14 +1,21 @@
 # Universal Service Manager (USM)
 
-**Universal Service Manager** is a single-process Python control plane with a browser dashboard for running a large fleet of services on one Linux host — start/stop/restart, auto-recovery, live metrics, log tail, systemd control, Docker/Compose, firewall editing, and in-browser config editing without juggling SSH sessions.
+![Universal Service Manager — services grid](assets/services-grid.png)
 
-Private source: [logicencoder/universal-service-manager](https://github.com/logicencoder/universal-service-manager). Service definitions live in `services.yaml` in the private repo — not in this overview.
+**Universal Service Manager** is a single-process Python control plane with a browser dashboard for running a large fleet of services on one Linux host — start/stop/restart, auto-recovery, live metrics, log tail, systemd control, Docker/Compose, firewall editing, and in-browser config editing without juggling SSH sessions. Homelab and production operators declare what to run once in YAML; the dashboard becomes the daily operations surface for the whole machine instead of memorizing working directories, virtualenvs, ports, and log paths across SSH sessions.
 
-## The problem it solves
+## Tech stack
 
-Homelab and production operators often run dozens of long-lived processes: Python APIs, Node helpers, bash watchers, systemd units, and Docker stacks. Without a control plane you memorize working directories, virtualenvs, ports, and log paths — and crashed processes stay down until someone logs in remotely.
-
-USM centralizes lifecycle, monitoring, and housekeeping behind one **authenticated web UI** (default port **5566**). You declare what to run once in YAML; the dashboard becomes the daily operations surface for the whole machine.
+| Layer | Technologies |
+|-------|--------------|
+| Control plane | Python 3, FastAPI, uvicorn, psutil, PyYAML |
+| Dashboard | HTML, CSS, vanilla JavaScript (tabbed SPA) |
+| Service types | Python venv apps, Node, bash, systemd units, generic exec |
+| Containers | Docker CLI, Compose stack inspection, in-container exec |
+| Host integration | systemd (system + user units), UFW firewall editing |
+| Config | `services.yaml` — dependencies, auto-restart backoff, manual-stop respect |
+| Auth | Optional dashboard password, session token, Bearer-protected write routes |
+| Hosting | Self-hosted Linux server |
 
 ## Services grid
 
@@ -20,31 +27,45 @@ Cards support drag-and-drop reordering (persisted in the browser), adjustable ca
 
 The **Overview** tab is the spreadsheet view of the same fleet: sortable columns for service name, type, PID, port, CPU%, memory, uptime, and row-level start/stop/restart/logs. Use it when you need to scan by resource usage, copy exact service names into tickets, or work through a long list faster than scrolling cards.
 
+![Overview tab — sortable fleet table](assets/overview-table.png)
+
 ## System resources
 
 The **Resources** tab answers “is the box healthy?” — not just “is one app up?”. Aggregate CPU with per-core bars, load averages, temperature where available, memory and swap, root disk usage with I/O rates, network RX/TX throughput, connection counts, active ports, and a live ranking of which managed services consume the most CPU and RAM.
 
 Sparkline history (~60 samples) updates from a background worker so the UI stays responsive when multiple browser tabs are open. Refresh rate is configurable per tab (1s / 2s / 5s / 10s / off).
 
+![Resources tab — host CPU, memory, disk, and network](assets/resources.png)
+
 ## Processes
 
 The **Processes** tab is a browser-side **htop**: PID, user, CPU%, memory, state, thread count, and full command line with text filter and column sort. Processes that belong to USM-managed services are highlighted; unmanaged PIDs can be added to monitoring with **+ Monitor** so they join the fleet without hand-editing YAML blind.
+
+![Processes tab — live process list with + Monitor](assets/processes.png)
 
 ## Log monitor
 
 The **Logs** tab replaces SSH `tail -f`. Pick any managed service from a dropdown, stream file logs or systemd journal output, filter by level (all / error / warn / info), search within the buffer, pause auto-scroll, clear the view, copy, or download. Color-coded lines make incident triage faster when a deploy goes wrong at 2 a.m.
 
+![Logs tab — streaming log tail with filters](assets/logs.png)
+
 ## Docker
 
 The **Docker** tab covers containers outside (or alongside) YAML-managed processes: running/stopped status, image, CPU and memory from `docker stats`, port mappings, size, and per-container start/stop/restart. Inspect images, networks, volumes, and compose stacks; pull new images; run exec commands inside a container; prune unused resources — all from the same session where you restart your Python APIs.
+
+![Docker tab — containers, images, and compose stacks](assets/docker.png)
 
 ## Systemd
 
 The **Systemd** tab lists system and user units with active state, autostart enable/disable, start/stop/restart, and journal access. Filter by name, scope, or running-only. **+ Monitor** imports an existing unit into USM’s managed set so it appears on the Services grid with the rest of the fleet.
 
+![Systemd tab — unit list with autostart toggles](assets/systemd.png)
+
 ## Startup
 
 The **Startup** tab shows what runs at boot: units with enabled or static autostart, tagged by priority (USM-managed, crucial, optional). Enable or disable boot behavior without memorizing `systemctl` syntax — useful before maintenance windows or when onboarding a new daemon.
+
+![Startup tab — boot autostart priorities](assets/startup.png)
 
 ## Firewall
 
@@ -58,6 +79,8 @@ The **Config** tab validates and saves `services.yaml` in-browser — add or fix
 
 The **Settings** tab controls dashboard UX: theme, default tab on load, card density and font size, sparkline height, polling intervals, CPU/memory alert thresholds, log monitor defaults, Docker auto-refresh, confirmation prompts before destructive actions, browser notifications on auto-restart, and export/import of preferences as JSON.
 
+![Settings tab — dashboard preferences and alerts](assets/settings.png)
+
 ## Managed service types
 
 | Type | Typical use |
@@ -68,78 +91,9 @@ The **Settings** tab controls dashboard UX: theme, default tab on load, card den
 | `systemd` | Proxy control for native units |
 | `exec` | Generic command lines |
 
-Dependencies (`depends_on`), auto-restart backoff, and manual-stop respect are configured per entry in YAML. Docker workloads can live in the Docker tab even when not declared as YAML services.
+Docker workloads can live in the Docker tab even when not declared as YAML services. USM targets **mixed Linux fleets** — not a Node-only process manager like PM2. See [FEATURES.md](FEATURES.md) and [VS_PM2.md](VS_PM2.md) for depth.
 
-## Authentication
-
-When a dashboard password is configured, login issues a session token and all write API routes require Bearer auth or a session cookie. Without a password the API is open on the bound interface — typical deployments place USM behind VPN or reverse-proxy TLS only.
-
-## Evaluation
-
-```bash
-git clone https://github.com/logicencoder/universal-service-manager  # private — access required
-pip install psutil pyyaml
-cp services.yaml.example services.yaml
-python3 usm.py dashboard 5566
-```
-
-USM is **not** a Node-only process manager like PM2. It targets **mixed Linux fleets**: systemd, Docker, Python, Node, and bash in one UI with host metrics and firewall editing in the same tool. See [FEATURES.md](FEATURES.md) and [VS_PM2.md](VS_PM2.md) in this repo for depth.
-
-## Screenshots
-
-### Services (main view)
-
-Grouped service cards with CPU/MEM sparklines, ports, restart counts, and per-card start/stop/restart/logs.
-
-![Services — grouped grid view](assets/screenshot-grid.png)
-
-### Overview
-
-Dense table of all managed services with CPU, memory, uptime, and row actions.
-
-![Overview — services table](assets/screenshot-overview.png)
-
-### Resources
-
-Host CPU (per-core), memory, disk I/O, network, and live service CPU/MEM ranking.
-
-![Resources — system and service metrics](assets/screenshot-resources.png)
-
-### Processes
-
-htop-like process list with filter, sort, and **+ Monitor** for unmanaged PIDs.
-
-![Processes — live process table](assets/screenshot-processes.png)
-
-### Logs
-
-Live log tail with service selector, level filters, search, pause, and download.
-
-![Logs — streaming log monitor](assets/screenshot-logs.png)
-
-### Docker
-
-Containers, images, networks, volumes, compose stacks, and in-container exec.
-
-![Docker — container and image management](assets/screenshot-docker.png)
-
-### Systemd
-
-Full systemd unit list with autostart toggles, start/stop/restart, and journal access.
-
-![Systemd — unit control panel](assets/screenshot-systemd.png)
-
-### Startup
-
-Boot-enabled units with USM / crucial / optional priority and enable/disable at boot.
-
-![Startup — boot autostart configuration](assets/screenshot-startup.png)
-
-### Settings
-
-Dashboard appearance, polling, alerts, log monitor, Docker refresh, and export/import.
-
-![Settings — dashboard preferences](assets/screenshot-settings.png)
+Private code: [universal-service-manager](https://github.com/logicencoder/universal-service-manager)
 
 See [REPOS.md](REPOS.md).
 

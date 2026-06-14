@@ -71,6 +71,8 @@ The **Startup** tab shows what runs at boot: units with enabled or static autost
 
 The **Firewall** tab edits **UFW** rules in the browser: enable/disable the firewall, set default policies, add/edit/delete/reorder allow/deny rules, filter the table, and read recent deny log lines. Optional privacy blur hides sensitive ports and IPs when demonstrating the dashboard remotely.
 
+![Firewall tab — UFW rules and default policies](assets/firewall.png)
+
 ## Config and debug
 
 The **Config** tab validates and saves `services.yaml` in-browser — add or fix service blocks, toggle auto-restart, and reload the fleet without a separate editor session. The **Debug** tab exposes a ring buffer of recent start/stop/restart/kill events with timings for post-mortems.

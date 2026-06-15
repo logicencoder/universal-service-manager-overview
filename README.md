@@ -2,7 +2,11 @@
 
 ![Universal Service Manager — services grid](assets/services-grid.png)
 
-**Universal Service Manager** is a single-process Python control plane with a browser dashboard for operating a large mixed fleet on one Linux host — Python APIs, Node tools, bash watchers, native systemd units, and Docker containers — from one tabbed UI instead of juggling SSH sessions, `systemctl`, `docker`, and log paths. Operators declare the fleet once in `services.yaml`; USM handles start/stop/restart, auto-recovery after crashes, live CPU and memory metrics, log tailing, boot visibility, optional UFW firewall editing, and in-browser config saves. Homelab and production users who run many long-lived processes on a VPS or bare-metal box use USM as the daily operations console for the whole machine.
+**Universal Service Manager** is a single-process Python control plane with a browser dashboard for operating a large mixed fleet on one Linux host — Python APIs, Node tools, bash watchers, native systemd units, and Docker containers — from one tabbed UI instead of juggling SSH sessions, `systemctl`, `docker`, and log paths. Operators declare the fleet once in `services.yaml`; USM handles start/stop/restart, auto-recovery after crashes, live CPU and memory metrics, log tailing, boot visibility, optional UFW firewall editing, and in-browser config saves.
+
+The author built USM for a **mixed homelab/production box** where many custom apps coexist — trading dashboards, chain monitors, SSR nodes, Docker sidecars — and nothing off-the-shelf fit the whole picture. PM2 covers Node only; Portainer or Cockpit miss YAML fleet semantics, auto-restart policy, and the same log/metrics surface for bash and systemd entries. Rather than duct-taping four tools, USM is the **one daily operations UI** the author actually runs in development and on the server: when a port clashes, a watcher dies, or a compose stack needs a bounce, everything is one tab away.
+
+**Example day-to-day flows:** before a deploy, **Stop** the service (sets intentionally-stopped so USM does not auto-restart mid-upload); watch **Logs** with **ERR** filter until clean; **Restart** and confirm the card goes green. A stray Python worker appears in **Processes** → **+ Monitor** adds it to `services.yaml` without SSH nano. A Redis container misbehaves → **Docker** tab → **Restart** + inline logs, while the FastAPI entry restarts from **Services**. Host feels slow → **Resources** → sort the bottom table by CPU% and kill the hog from **Processes**.
 
 ## Tech stack
 
@@ -40,6 +44,8 @@ Toolbar actions include **▶ All**, **⏹ All**, **↺ Stopped** (restart only 
 
 Per-card buttons are **Start**, **Stop**, **Kill** (force terminate), **Restart**, and **Logs**. Stop sets the intentionally-stopped flag; Kill does the same with SIGKILL semantics. Port links open `http://localhost:<port>` in a new tab when a listener is detected even if `port:` was omitted in YAML. Group headers expose the same bulk start/stop/restart trio for that section only.
 
+**Example:** a `python` API card shows rising auto-restart count → open **Logs** from the card, fix the crash, hit **Restart**; if you need the process down during maintenance, **Stop** (not Kill) so auto-restart stays off until you **Start** again.
+
 ## Overview table
 
 The **Overview** tab is the spreadsheet view of the same managed services — better for scanning long fleets, sorting by resource usage, or copying exact service names into tickets. A header row shows total, running, and stopped counts with the same **Start All / Stop All / Restart All** bulk actions as the grid.
@@ -66,6 +72,8 @@ The **Processes** tab is a browser-side **htop** over the whole machine, fed fro
 
 Rows belonging to USM-managed services are **highlighted**. Unmanaged processes expose **+ Monitor**, which opens the add-service modal pre-filled from the running command so you can adopt a stray process into `services.yaml` without hand-editing blind. A separate **Kill** action on arbitrary PIDs is available for one-off cleanup (with confirmation when enabled).
 
+**Example:** sort by **CPU%**, spot an unknown `python3` hogging a core → read PID, click **+ Monitor**, name it, save — it appears on the Services grid next boot with auto-restart policy.
+
 ![Processes tab — live process list with + Monitor](assets/processes.png)
 
 ## Log monitor
@@ -73,6 +81,8 @@ Rows belonging to USM-managed services are **highlighted**. Unmanaged processes 
 The **Logs** tab replaces SSH `tail -f` for fleet triage. Pick any managed service from the dropdown; the view streams the service log file (or systemd journal where applicable) with color-coded levels — **ERROR** red, **WARN** yellow, **INFO** blue, **DEBUG** grey. Level filter buttons (**ALL / ERR / WARN / INFO**) hide noise during incidents.
 
 While watching logs you can **Start**, **Stop**, or **Restart** the selected service from the toolbar. **Auto-scroll** follows new lines; **Pause** freezes the buffer for reading; **Clear** wipes the on-screen view without touching the file. **Download** saves the log; **Copy** puts visible lines on the clipboard. A search box highlights matching text in the buffer. Log refresh rate, max lines kept, timestamp display, and default auto-scroll are configurable under Settings.
+
+**Example:** after a deploy, pick the service from the dropdown, set filter to **ERR**, pause auto-scroll when you find the stack trace, fix config in the **Config** tab, **Restart** from the log toolbar, switch filter to **ALL** to watch a clean boot line.
 
 ![Logs tab — streaming log tail with filters](assets/logs.png)
 
@@ -90,6 +100,8 @@ Sub-panels open from the toolbar:
 - **Prune** — remove stopped containers
 
 An inline log panel streams `docker logs` with timestamps for the selected container. **Exec** runs a command inside a running container from the UI. Docker auto-refresh interval is configurable (5s–60s). When the Docker daemon is unreachable, the tab shows a clear error instead of a blank table.
+
+**Example:** API container healthy but cache sidecar stale → filter containers, open inline logs on the Redis/nginx container, **Restart** it, then confirm port mapping in the expanded row. A compose project failed → **Compose** sub-panel → **Up** on the stack, **Logs** tail until all services report running.
 
 ![Docker tab — containers, images, and compose stacks](assets/docker.png)
 

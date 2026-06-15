@@ -2,7 +2,7 @@
 
 ![Universal Service Manager — services grid](assets/services-grid.png)
 
-**Universal Service Manager** is a single-process Python control plane with a browser dashboard for running a large fleet of services on one Linux host — start/stop/restart, auto-recovery, live metrics, log tail, systemd control, Docker/Compose, firewall editing, and in-browser config editing without juggling SSH sessions. Homelab and production operators declare what to run once in YAML; the dashboard becomes the daily operations surface for the whole machine instead of memorizing working directories, virtualenvs, ports, and log paths across SSH sessions.
+**Universal Service Manager** is a single-process Python control plane with a browser dashboard for running a large fleet of services on **your Linux server** — start/stop/restart, auto-recovery, live metrics, log tail, systemd control, Docker/Compose, firewall editing, and in-browser config editing without juggling SSH sessions. Homelab and production operators declare what to run once in YAML; the dashboard becomes the daily operations surface for the whole machine.
 
 ## Tech stack
 
@@ -81,17 +81,7 @@ The **Settings** tab controls dashboard UX: theme, default tab on load, card den
 
 ![Settings tab — dashboard preferences and alerts](assets/settings.png)
 
-## Managed service types
-
-| Type | Typical use |
-|------|-------------|
-| `python` | FastAPI/Flask apps with venv commands |
-| `node` | Node SSR or tooling processes |
-| `bash` | Watchers and glue scripts |
-| `systemd` | Proxy control for native units |
-| `exec` | Generic command lines |
-
-Docker workloads can live in the Docker tab even when not declared as YAML services. USM targets **mixed Linux fleets** — not a Node-only process manager like PM2. See [FEATURES.md](FEATURES.md) and [VS_PM2.md](VS_PM2.md) for depth.
+Supported entry types in YAML include **python**, **node**, **bash**, **systemd**, and **exec** — plus Docker workloads from the Docker tab when they are not declared as YAML services. USM targets **mixed Linux fleets**: systemd, Docker, Python, Node, and bash in one UI with host metrics and firewall editing. See [FEATURES.md](FEATURES.md) and [VS_PM2.md](VS_PM2.md) for depth.
 
 Private code: [universal-service-manager](https://github.com/logicencoder/universal-service-manager)
 

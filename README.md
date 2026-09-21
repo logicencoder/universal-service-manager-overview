@@ -200,7 +200,7 @@ See [REPOS.md](REPOS.md).
 
 ---
 
-## Feature examples (two per capability)
+## Operator workflows
 
 #### Unified service registry
 1. One YAML file lists gas tracker, trading apps, and tunnel services with ports and env files.

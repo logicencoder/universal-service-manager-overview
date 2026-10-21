@@ -2,11 +2,7 @@
 
 ![Universal Service Manager — services grid](assets/services-grid.png)
 
-**Universal Service Manager** is a single-process Python control plane with a browser dashboard for operating a large mixed fleet on one Linux host — Python APIs, Node tools, bash watchers, native systemd units, and Docker containers — from one tabbed UI instead of juggling SSH sessions, `systemctl`, `docker`, and log paths. Operators declare the fleet once in `services.yaml`; USM handles start/stop/restart, auto-recovery after crashes, live CPU and memory metrics, log tailing, boot visibility, optional UFW firewall editing, and in-browser config saves.
-
-The author built USM for a **mixed homelab/production box** where many custom apps coexist — trading dashboards, chain monitors, SSR nodes, Docker sidecars — and nothing off-the-shelf fit the whole picture. PM2 covers Node only; Portainer or Cockpit miss YAML fleet semantics, auto-restart policy, and the same log/metrics surface for bash and systemd entries. Rather than duct-taping four tools, USM is the **one daily operations UI** the author actually runs in development and on the server: when a port clashes, a watcher dies, or a compose stack needs a bounce, everything is one tab away.
-
-Before a deploy, **Stop** the service (sets intentionally-stopped so USM does not auto-restart mid-upload); watch **Logs** with **ERR** filter until clean; **Restart** and confirm the card goes green. A stray Python worker appears in **Processes** → **+ Monitor** adds it to `services.yaml` without SSH nano. A Redis container misbehaves → **Docker** tab → **Restart** + inline logs, while the FastAPI entry restarts from **Services**. Host feels slow → **Resources** → sort the bottom table by CPU% and kill the hog from **Processes**.
+**Universal Service Manager** brings a mixed Linux service fleet into one browser dashboard. Operators start and stop Python, Node.js, shell and native services, inspect live resource usage and logs, manage Docker workloads and boot behaviour, and inspect SSH connections and files from the same workspace. Its YAML registry and command-line interface support headless administration alongside the dashboard.
 
 ## Tech stack
 
@@ -15,7 +11,7 @@ Before a deploy, **Stop** the service (sets intentionally-stopped so USM does no
 | Control plane | Python 3, `ThreadingHTTPServer`, `BaseHTTPRequestHandler`, background worker thread |
 | Serialization | `orjson` (fallback `json`), PyYAML |
 | Host metrics | `psutil` — CPU, memory, disk I/O, network, process list, temperatures |
-| Dashboard | Single-page `dashboard.html` — HTML, CSS, vanilla JavaScript (12 tabs) |
+| Dashboard | Single-page `dashboard.html` — HTML, CSS, vanilla JavaScript (13 tabs) |
 | Service types | `python`, `node`, `bash`, `systemd`, `exec` — venv paths, env files, optional `depends_on`, `group` |
 | Containers | Docker CLI — `ps`, `stats`, `logs`, `exec`, `pull`, prune; Compose `up`/`down`/`build`/`pull`/`restart`/`logs` |
 | Host integration | systemd (system + user scope), UFW firewall, cron `@reboot` inspection |
@@ -26,9 +22,9 @@ Before a deploy, **Stop** the service (sets intentionally-stopped so USM does no
 
 ## Control plane and reliability
 
-USM runs as one Python process: a **background worker thread** pre-computes expensive data so HTTP handlers return cached snapshots in under a millisecond instead of blocking on `systemctl` or `psutil` per browser poll. The worker refreshes **service status** about every second (batch `systemctl is-active` for systemd-backed entries, PID checks for process types), **system stats** every two seconds, the **process list** every three seconds, and an **auto-restart monitor** every five seconds.
+USM runs as one Python process: a **background worker thread** pre-computes expensive data so HTTP handlers return cached snapshots, avoiding repeated collection of the same host data for each browser request. The worker refreshes **service status** about every second (batch `systemctl is-active` for systemd-backed entries, PID checks for process types), **system stats** every two seconds, the **process list** every three seconds, and an **auto-restart monitor** every five seconds.
 
-When a service with `auto_restart: true` drops while the dashboard is up, USM attempts a restart and records an `auto_restart` event. YAML can cap recovery with `max_restarts` and delay with `restart_delay` seconds between attempts. **Manual Stop or Kill** sets an `intentionally_stopped` flag in persisted state so auto-restart does not fight the operator; **Start or Restart** clears that flag. Restart counters are split: **auto** restarts vs **manual** restarts, shown on cards as `auto / man`. Cards also surface an intentionally-stopped badge when the operator halted a service on purpose.
+When a service with `auto_restart: true` drops while the dashboard is up, USM attempts a restart and records an `auto_restart` event. YAML can cap recovery with `max_restarts` and delay with `restart_delay` seconds between attempts. **Manual Stop or Kill** sets an `intentionally_stopped` flag in persisted state so auto-restart does not fight the operator during normal operation; **Start or Restart** clears that flag. On detected host reboot, the manager clears intentional-stop flags so boot recovery can resume. Restart counters are split: **auto** restarts vs **manual** restarts, shown on cards as `auto / man`. Cards also surface an intentionally-stopped badge when the operator halted a service on purpose.
 
 Sparkline history (~60 samples per service) feeds CPU and memory mini-charts on the grid. Connected browsers can subscribe to **SSE** for live status, system, process, and debug-event updates. The **Page Visibility API** pauses polling when the tab is hidden (configurable); the **window title** shows running/stopped counts so you can glance at fleet health from the taskbar. Press **`?`** for keyboard shortcuts — number keys `1`–`9` and `0` jump between major tabs; **`p`** pauses polling, **`R`** forces refresh.
 
@@ -90,13 +86,13 @@ After a deploy, pick the service from the dropdown, set filter to **ERR**, pause
 
 The **Docker** tab manages containers alongside YAML-defined processes — useful when part of the stack runs in Docker without a USM service entry. The toolbar refreshes the container list, filters by name/image, supports **running only**, and shows running/total counts.
 
-The main table columns are **ID**, **Name**, **Image**, **Status**, live **CPU%** and **Memory** from `docker stats`, **port mappings**, **size**, and per-row **Start / Stop / Restart**. Resizable columns help on wide screens. Batch **Stop All** and **Start All** act on the filtered set. **Pull** accepts an `image:tag` to fetch new images.
+The main table columns are **ID**, **Name**, **Image**, **Status**, live **CPU%** and **Memory** from `docker stats`, **port mappings**, **size**, and per-row **Start / Stop / Restart**. Resizable columns help on wide screens. Batch **Stop All** and **Start All** select running or stopped containers from the loaded inventory and present the target names for confirmation. **Pull** accepts an `image:tag` to fetch an image. Expanding a container exposes inspection details, restart policy editing, command execution and log access.
 
 Sub-panels open from the toolbar:
 
 - **Images** — browse local images, refresh, delete unused tags
 - **Compose** — discover `docker-compose.yml` / `compose.yaml` files, run **up**, **down**, **build**, **pull**, **restart**, and tail compose logs
-- **Networks** and **Volumes** — inspect and remove unused resources
+- **Networks** — inspect driver, subnet and connected containers; **Volumes** — inspect usage and remove eligible unused volumes
 - **Prune** — remove stopped containers
 
 An inline log panel streams `docker logs` with timestamps for the selected container. **Exec** runs a command inside a running container from the UI. Docker auto-refresh interval is configurable (5s–60s). When the Docker daemon is unreachable, the tab shows a clear error instead of a blank table.
@@ -125,7 +121,7 @@ Sections include:
 - **Systemd timers** — scheduled timers that may fire soon after boot
 - **rc.local / legacy** — preview of classic boot scripts when present
 
-![Startup tab — boot autostart priorities](assets/startup.png)
+
 
 ## Firewall
 
@@ -133,9 +129,19 @@ The **Firewall** tab edits **UFW** from the browser when UFW is installed. If mi
 
 The rules table lists action (ALLOW/DENY), port/protocol, source, and direction. **Add Rule** supports port or application profile, TCP/UDP/both, source CIDR or `Anywhere`, and comment text; rules can be **moved up/down** in the chain before commit. A **Firewall Log** panel streams recent UFW deny/block lines for quick triage. Settings can **blur sensitive ports and IPs** when demonstrating the dashboard remotely — useful for screen shares without exposing internal network detail.
 
+## Connections and file transfers
+
+The **Connections** tab brings SSH inventory, reachability and file handling into the operational dashboard. Host rows show the configured alias, destination, user, port and identity-file availability. SSH probes display success or a short error with elapsed time; a separate TCP probe helps distinguish an unreachable port from an SSH authentication problem.
+
+Supporting panels list local public-key fingerprints, authorised keys, known hosts, connection helper scripts, network interfaces and the default route. GitHub tooling and Git identity status provide an additional readiness check when administering repositories from the host. These panels help establish which connection configuration is available before attempting a transfer.
+
+The two-pane file browser navigates local and selected remote directories. Directories open through navigation controls or double-click, while rows expose file type, size and modification date. Operators select an entry and copy in either direction, monitor transfer progress, upload from the browser, download a file, create a directory or remove a selected entry after confirmation.
+
+Public-key deployment appends a selected local public key to the remote host's authorised keys after operator confirmation. Connection-bundle synchronization has its own action and reports per-target results. These operations change remote state and remain explicit controls rather than background effects of opening a directory.
+
 ## Config editor
 
-The **Config** tab is a full-height **YAML editor** for `services.yaml`. Toolbar shows the active file path and line count. **Reload** discards unsaved edits and re-reads disk; **Validate** checks YAML structure and confirms a top-level `services` map; **Save & Apply** writes the file and reloads the in-memory fleet without restarting the USM process. Validation and save errors surface inline above the editor. Use this when adding `auto_restart`, `restart_delay`, `max_restarts`, `depends_on`, `group`, `env_file`, or `user_service` flags — then confirm behaviour on the Services grid.
+The **Config** tab is a full-height **YAML editor** for `services.yaml`. Toolbar shows the active file path and line count. **Reload** discards unsaved edits and re-reads disk; **Validate** checks YAML structure and confirms a top-level `services` map; **Save & Apply** writes the file and reloads the in-memory fleet without restarting the USM process. Validation and save errors surface inline above the editor. A configuration reload changes the manager's registry; review the Services view and explicitly restart only entries whose running command needs replacement. Use this when adding `auto_restart`, `restart_delay`, `max_restarts`, `depends_on`, `group`, `env_file`, or `user_service` flags — then confirm behaviour on the Services grid.
 
 ## Debug and events
 
@@ -173,9 +179,9 @@ The **Settings** tab controls dashboard UX; every toggle auto-saves to **localSt
 
 Docker workloads are operated from the Docker tab even when not declared as YAML services. YAML fields such as `port`, `working_dir`, `args`, `env_file`, `group`, `depends_on`, `auto_restart`, `restart_delay`, and `max_restarts` tune how each entry starts and recovers.
 
-A top-level `settings:` block in `services.yaml` can set `dashboard_port`, `dashboard_password`, and `log_retention_days` without editing Python. Optional password protection shows a login modal; successful login issues a session token (Bearer header or HttpOnly cookie) required for all write routes and the dashboard HTML itself.
+A top-level `settings:` block in `services.yaml` can set `dashboard_port`, `dashboard_password`, and `log_retention_days` without editing Python. Optional password protection shows a login modal; successful login issues a session token (Bearer header or HttpOnly cookie) used by the dashboard's protected requests. The dashboard is an administrative surface and should be exposed through a trusted network or access-controlled gateway.
 
-USM targets **mixed Linux fleets** — broader than a Node-only manager. See [FEATURES.md](FEATURES.md) and [VS_PM2.md](VS_PM2.md) for extended comparison notes.
+USM targets mixed Linux fleets. The registry preserves the command, working directory, environment and recovery policy for each service; group labels make related applications easier to operate together.
 
 ## CLI (headless operations)
 
@@ -194,108 +200,34 @@ The `usm.py` entrypoint mirrors dashboard actions for scripts and SSH-only sessi
 | `edit` | Open config in `$EDITOR` |
 | `monitor` | Terminal watch mode |
 
+## Operational workflows
+
+### Investigate a stopped or repeatedly restarting service
+
+Start with the service card's status and separate automatic/manual restart counters. Open **Logs** for that service, filter **ERR** or **WARN**, and pause the view to inspect the relevant output. **Debug** adds event results and restart leaders; **Resources** distinguishes an application failure from host pressure.
+
+Use **Stop** when the application should remain down during maintenance. After reviewing its command or configuration, start the affected service and check its new PID, status and logs. Group and fleet controls support broader maintenance, while individual actions keep the intervention scoped.
+
+### Introduce a new application or existing daemon
+
+Use **Add** for a new command, or **+ Monitor** from Processes or Systemd to prepare an entry from something already present. Review its name, runtime type, working directory, group and recovery options before saving. Dependency labels on cards expose the current state of referenced services.
+
+Then check the registry in **Config**, the service in **Services**, and the relevant boot mechanism in **Startup**. Dependency chips provide visibility; startup ordering follows the implementation's registry operations rather than a documented dependency scheduler.
+
+### Diagnose a container or remote connection
+
+In **Docker**, inspect the selected container's state, ports, restart policy and recent output before choosing a lifecycle action. Compose controls address a whole discovered project, while container controls address an individual workload. Output panels retain the result of the selected operation for inspection.
+
+For remote work, use **Connections** to check the configured identity and TCP/SSH reachability first. Choose the remote host and verify both directory paths before a copy. Progress and result messages expose whether the transfer completed or requires another attempt.
+
+### Carry dashboard preferences between browsers
+
+Export the Settings JSON before moving to another browser profile, then import it to restore presentation, polling and confirmation preferences. These are browser preferences; the service registry and the host's running processes remain separate operational state.
+
+---
+
 Private code: [universal-service-manager](https://github.com/logicencoder/universal-service-manager)
 
-See [REPOS.md](REPOS.md).
+See [REPOS.md](REPOS.md) for related repositories.
 
----
-
-## Operator workflows
-
-#### Unified service registry
-1. One YAML file lists gas tracker, trading apps, and tunnel services with ports and env files.
-2. Group tags like `blockchain` and `infra` organize cards and dropdown filters.
-
-#### Multi-runtime process types
-1. `type: python` launches FastAPI backends with venv script paths from working_dir.
-2. `type: systemd` proxies nginx or user-scoped units without reimplementing systemd.
-
-#### Lifecycle from browser or CLI
-1. You click Start on a service card in the grid — PID file and log path activate.
-2. You run `usm restart gas-tracker` from shell automation with the same engine.
-
-#### Intelligent auto-restart
-1. A crashed Python worker restarts automatically unless you clicked Stop.
-2. `max_restarts: 10` caps runaway restart loops and surfaces alert in Debug tab.
-
-#### Manual-stop protection
-1. Stop sets intentionally_stopped so the five-second monitor does not fight you.
-2. Start or restart clears the flag and resumes auto-restart eligibility.
-
-#### Dependency awareness
-1. `depends_on: [redis-service]` shows green/red chips on dependent cards.
-2. Start order respects dependencies when bringing a stack up.
-
-#### Service grid UX
-1. Text search plus group dropdown plus running-only filter shows `12/16` style counts.
-2. Drag-and-drop card reorder on the title bar persists in browser settings.
-
-#### Overview operations table
-1. You sort by CPU across all services during an incident.
-2. Start All / Stop All / Restart All from overview header batches fleet ops.
-
-#### Real-time dashboard feed
-1. SSE stream pushes status and sparkline history without polling every endpoint.
-2. Page Visibility API pauses heavy refresh when the browser tab is hidden.
-
-#### Host resource dashboard
-1. Per-core CPU grid shows load average and temperature when sensors exist.
-2. Disk read/write rates plus extra mount points appear when configured.
-
-#### Per-service performance visuals
-1. Dual CPU/MEM sparklines on each card hold roughly sixty samples.
-2. Inline progress bars show current CPU and memory with configurable decimals.
-
-#### Process inspector
-1. Sortable table lists PID, user, VIRT, RES, CPU%, MEM%, and command line.
-2. Tree view toggle exposes parent/child relationships; kill guards USM-managed PIDs.
-
-#### Log operations center
-1. You filter ERR/WARN/INFO while tailing a selected service log file.
-2. Download or copy visible log buffer for ticket attachment.
-
-#### Systemd management
-1. List system and user units with running-only filter.
-2. Enable autostart on a unit and open journal snippet inline.
-
-#### Boot and startup visibility
-1. Startup tab lists all systemd units enabled at boot.
-2. Surfaces cron @reboot lines and systemd timers in one inventory.
-
-#### Docker container control
-1. Start/stop/restart individual containers; batch stop all before maintenance.
-2. Pull image by tag and prune stopped containers from the Docker tab.
-
-#### Docker Compose stacks
-1. Auto-scan finds compose files under configurable search paths.
-2. Up/down/build/pull/restart/logs per stack with output panel.
-
-#### Firewall management
-1. Enable UFW and set default incoming/outgoing policies from the UI.
-2. Quick allow rule tied to a service port from the service card context.
-
-#### Configuration without SSH
-1. Config tab reloads YAML, validates syntax, and Save & Apply writes to disk.
-2. Add Service modal creates a new entry via API without manual file edit.
-
-#### Security and operator prefs
-1. Optional dashboard password sets session cookie — recommended behind VPN or reverse proxy.
-2. Browser notifications fire on auto-restart; CPU/MEM threshold alerts highlight offenders.
-
-#### Debug and event log
-1. Debug tab shows restart leaders and active threshold violations.
-2. Persisted events ring buffer captures lifecycle actions for post-mortem.
-
-#### CLI parity
-1. `usm status` lists the same fleet state as the Services grid.
-2. `usm monitor` runs headless auto-restart loop without opening the browser.
-
-#### Settings export
-1. Export settings JSON before rebuilding the host.
-2. Import restores theme, polling interval, and confirm-dialog preferences.
-
----
-
----
-
-**Made by [Logic Encoder](https://logicencoder.com)** · [GitHub](https://github.com/logicencoder) · [Contact](https://logicencoder.com/contact/)
+**[Logic Encoder](https://logicencoder.com)** · [GitHub](https://github.com/logicencoder) · [Contact](https://logicencoder.com/contact/)

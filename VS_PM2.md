@@ -1,58 +1,26 @@
-# USM vs PM2 — Detailed Comparison
+# Choosing a workspace for a mixed service fleet
 
-| Feature | USM | PM2 |
-|---------|-----|-----|
-| **Python** | ✅ Native first-class | ⚠️ Via interpreter |
-| **Node.js** | ✅ Native | ✅ Native |
-| **Bash** | ✅ Native first-class | ⚠️ Via exec |
-| **Systemd** | ✅ Wrapper + enable/disable toggle | ❌ No |
-| **Exec (binaries)** | ⚠️ Experimental | ✅ Native |
-| **Docker** | ✅ Dedicated Docker tab | ❌ No |
-| **Background worker (non-blocking)** | ✅ Cache pre-computation | ❌ Direct calls |
-| **Intentionally stopped flag** | ✅ No auto-restart conflicts | ❌ No |
-| **System Resources dashboard** | ✅ Full (CPU/Mem/Disk/Net) | ⚠️ Basic |
-| **Processes tab (htop)** | ✅ Built-in | ❌ No |
-| **Systemd enable/disable** | ✅ Toggle in UI | ❌ No |
-| **Per-tab refresh rate** | ✅ System Resources has own rate | ❌ No |
-| **Multi-user (no blocking)** | ✅ Instant cache | ⚠️ Can lag |
-| **Page Visibility API** | ✅ Pause polling | ❌ No |
-| **Live window title** | ✅ Shows running/stopped count | ❌ No |
-| **Web dashboard** | ✅ Built-in, local | ☁️ PM2.io cloud |
-| **Auto-restart** | ✅ Per-service config | ✅ Global |
-| **Separate restart counters** | ✅ Auto vs Manual | ❌ No |
-| **Log tail** | ✅ Built-in | ✅ pm2 logs |
-| **Service dependencies** | ✅ depends_on | ❌ No |
-| **Cluster mode** | ❌ No | ✅ Yes |
-| **Log rotation** | ❌ Planned | ✅ Built-in |
-| **CPU/Memory limits** | ❌ Planned | ✅ Yes |
-| **Startup hooks** | ❌ No | ✅ Yes |
-| **Cloud monitoring** | ❌ No | ✅ PM2.io |
+USM was built because the available tools did not fit its creator's daily workflow. The need was practical: keep application control, logs, host resources, containers and related administration close together, with less time spent moving between utilities.
 
----
+## When the unified workspace is useful
 
-## When to use USM
+A mixed fleet may include applications in several runtimes, native services and containers. An incident can require checking more than one of them. USM brings those checks into a familiar interface, so finding the affected service, reading its output and taking a targeted action remain connected tasks.
 
-- 🐍 You have **Python** backends
-- 📜 You need **Bash** scripts as services
-- 🔧 You need a **Systemd** wrapper with enable/disable UI
-- 📋 You want **unified config** for all language types
-- 🌐 You want a **local** web dashboard (no cloud)
-- 🔗 You need **service dependencies** (depends_on)
-- 👥 You need **multi-user** access without lag
-- 📊 You need **htop-like** process monitoring in the browser
-- 🐳 You want **Docker container** monitoring alongside your services
-- ⚡ You want **smart auto-restart** without manual stop conflicts
+The service grid supports a visual daily overview; the compact table helps compare a longer list. Logs, resources and process inspection support investigation, while container and native-service views keep surrounding workloads accessible.
 
-## When to use PM2
+## Select for the work you do repeatedly
 
-- 🚀 **Node.js only** applications
-- 📊 You need **cluster mode** (multiple instances)
-- 🔄 You need **log rotation**
-- 💾 You need **CPU/Memory limits** per process
-- ☁️ You want **cloud monitoring** (PM2.io)
-- 🔌 You need **startup hooks** (systemd integration)
+Consider the tasks that consume time during a normal week:
 
-## When to use Portainer
+- Do you repeatedly switch tools to check whether applications are running?
+- Is it difficult to connect a service's status with its logs and resource use?
+- Do containers and native services form part of the same daily routine?
+- Would a shared view of startup, connections and configuration make maintenance easier?
 
-- 🐳 Primarily **Docker** containers / Swarm / Kubernetes
-- You need Docker volume, network, and image management
+USM focuses on those combined workflows. The [product tour](README.md) and [capability guide](FEATURES.md) describe the available areas so you can judge their fit for your own work.
+
+## A practical basis for evaluation
+
+Use the screenshots to understand the workspace, then assess it against the actions you need to perform. Tool choice depends on the environment and operating routine; this guide makes no feature or performance claims about other products.
+
+Private implementation: [universal-service-manager](https://github.com/logicencoder/universal-service-manager)

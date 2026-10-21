@@ -1,228 +1,133 @@
-# Universal Service Manager (USM)
+# Universal Service Manager
 
-![Universal Service Manager — services grid](assets/services-grid.png)
+![Service management workspace](assets/services-grid.png)
 
-**Universal Service Manager** brings a mixed Linux service fleet into one browser dashboard. Operators start and stop Python, Node.js, shell and native services, inspect live resource usage and logs, manage Docker workloads and boot behaviour, and inspect SSH connections and files from the same workspace. Its YAML registry and command-line interface support headless administration alongside the dashboard.
+Managing a growing collection of applications can turn a simple check into a round of terminal sessions, log searches and separate administration tools. Universal Service Manager grew out of that daily frustration: the available tools did not fit the way its creator wanted to work, so a single workspace was built around those needs.
+
+The result brings service control, logs, resource monitoring, containers and host administration together. See what needs attention, investigate it and take action without repeatedly changing tools. Less time navigating between utilities means more time spent on the applications themselves.
 
 ## Tech stack
 
 | Layer | Technologies |
-|-------|--------------|
-| Control plane | Python 3, `ThreadingHTTPServer`, `BaseHTTPRequestHandler`, background worker thread |
-| Serialization | `orjson` (fallback `json`), PyYAML |
-| Host metrics | `psutil` — CPU, memory, disk I/O, network, process list, temperatures |
-| Dashboard | Single-page `dashboard.html` — HTML, CSS, vanilla JavaScript (13 tabs) |
-| Service types | `python`, `node`, `bash`, `systemd`, `exec` — venv paths, env files, optional `depends_on`, `group` |
-| Containers | Docker CLI — `ps`, `stats`, `logs`, `exec`, `pull`, prune; Compose `up`/`down`/`build`/`pull`/`restart`/`logs` |
-| Host integration | systemd (system + user scope), UFW firewall, cron `@reboot` inspection |
-| State on disk | `services.yaml`, `~/.service_manager/state.json`, PID files, per-service log files |
-| Realtime | Server-Sent Events (`/api/stream`) for status, system, process, and event pushes |
-| Auth | Optional `dashboard_password` in YAML or `USM_PASSWORD` env — Bearer token + HttpOnly cookie |
-| Hosting | Self-hosted Linux server |
+|---|---|
+| Application | Python |
+| Dashboard | HTML, CSS, JavaScript |
+| Configuration | YAML |
+| Monitoring | psutil, Server-Sent Events |
+| Integrations | Docker, Docker Compose, systemd, SSH, UFW |
+| Platform | Linux |
 
-## Control plane and reliability
+## A single place to run the fleet
 
-USM runs as one Python process: a **background worker thread** pre-computes expensive data so HTTP handlers return cached snapshots, avoiding repeated collection of the same host data for each browser request. The worker refreshes **service status** about every second (batch `systemctl is-active` for systemd-backed entries, PID checks for process types), **system stats** every two seconds, the **process list** every three seconds, and an **auto-restart monitor** every five seconds.
+The **Services** workspace makes a mixed collection of applications manageable as one fleet. Python applications, Node.js tools, shell jobs and native services appear together, with clear running or stopped states and the controls needed for everyday administration.
 
-When a service with `auto_restart: true` drops while the dashboard is up, USM attempts a restart and records an `auto_restart` event. YAML can cap recovery with `max_restarts` and delay with `restart_delay` seconds between attempts. **Manual Stop or Kill** sets an `intentionally_stopped` flag in persisted state so auto-restart does not fight the operator during normal operation; **Start or Restart** clears that flag. On detected host reboot, the manager clears intentional-stop flags so boot recovery can resume. Restart counters are split: **auto** restarts vs **manual** restarts, shown on cards as `auto / man`. Cards also surface an intentionally-stopped badge when the operator halted a service on purpose.
+Each card brings status, resource usage, uptime and restart activity into the same view. Open the service's logs, start it, stop it or restart it without searching for its launch command. Recent usage charts help distinguish a quiet application from one whose resource needs are changing.
 
-Sparkline history (~60 samples per service) feeds CPU and memory mini-charts on the grid. Connected browsers can subscribe to **SSE** for live status, system, process, and debug-event updates. The **Page Visibility API** pauses polling when the tab is hidden (configurable); the **window title** shows running/stopped counts so you can glance at fleet health from the taskbar. Press **`?`** for keyboard shortcuts — number keys `1`–`9` and `0` jump between major tabs; **`p`** pauses polling, **`R`** forces refresh.
+Groups organise related services, while search and running-only filters keep large fleets navigable. Card sizing, collapsible groups and a saved display order let the workspace fit the operator's routine. Individual and group actions support focused work as well as broader maintenance.
 
-The same binary exposes a **CLI** (`start`, `stop`, `restart`, `status`, `logs`, `list`, `reload`, `edit`, `monitor`, `dashboard`) for scripting and headless use alongside the web UI.
+## A compact overview for busy hosts
 
-## Services grid
+The **Overview** table presents the same fleet in a denser layout. It is useful when the priority is comparing services rather than working with individual cards: scan running states, sort by resource usage and find the application that deserves attention.
 
-The **Services** tab is the default home screen and the visual command center for the YAML fleet. A toolbar shows host-level CPU and memory summaries, running/stopped counts, and total restart activity, plus global refresh rate (0.5s–10s), card width zoom (−/+ or Settings slider), text filter, group dropdown, and a **running-only** checkbox.
+Lifecycle controls remain available beside each row, so identifying a problem and acting on it stay in the same workspace. Summary counts make it easier to check the overall fleet after maintenance.
 
-Each **group** (from `group:` in YAML) renders a collapsible section with **Start All / Stop All / Restart All** for that group. Service **cards** use a green or red border for running vs stopped, show type, PID, declared or detected listening **port** (clickable localhost link), CPU% and memory with inline progress bars, combined restart counts, and optional **Depends On** chips that turn green or red based on whether named dependencies are up. Dual **sparklines** plot recent CPU and memory; hover actions expose Start, Stop, Kill, Restart, and Logs without opening another tab. Cards reorder via drag handle (⋮⋮ only — not the whole card); order persists in **localStorage**. Double-click a card (when enabled in Settings) jumps straight to the Logs tab for that service.
+![Fleet overview and service actions](assets/overview-table.png)
 
-Toolbar actions include **▶ All**, **⏹ All**, **↺ Stopped** (restart only stopped entries), force refresh, collapse/expand all groups, and **＋ Add** to open the add-service modal (name, type, command, working dir, port, group, auto-restart) which writes a new block into `services.yaml` and reloads the fleet.
+## Understand where resources are going
 
-Per-card buttons are **Start**, **Stop**, **Kill** (force terminate), **Restart**, and **Logs**. Stop sets the intentionally-stopped flag; Kill does the same with SIGKILL semantics. Port links open `http://localhost:<port>` in a new tab when a listener is detected even if `port:` was omitted in YAML. Group headers expose the same bulk start/stop/restart trio for that section only.
+The **Resources** workspace helps answer a practical question: is one application struggling, or is the whole machine under pressure? CPU activity, memory, storage and network information sit together, with a service usage table that helps identify the largest consumers.
 
-When a `python` API card shows rising auto-restart count → open **Logs** from the card, fix the crash, hit **Restart**; if you need the process down during maintenance, **Stop** (not Kill) so auto-restart stays off until you **Start** again.
+Per-core activity and recent trends provide context beyond a single percentage. Memory and swap information help explain pressure, storage usage shows capacity concerns, and transfer rates help identify network activity. Available sensor and interface information adds detail where the host supports it.
 
-## Overview table
+Choose an update rate appropriate to the investigation or refresh on demand. This keeps the information useful during an incident without requiring another monitoring tool for a quick diagnosis.
 
-The **Overview** tab is the spreadsheet view of the same managed services — better for scanning long fleets, sorting by resource usage, or copying exact service names into tickets. A header row shows total, running, and stopped counts with the same **Start All / Stop All / Restart All** bulk actions as the grid.
+![Host resources and application usage](assets/resources.png)
 
-The table columns are **Service**, **Type**, **PID**, **Port**, **CPU**, **Memory**, and **Uptime** — each sortable via column header click. Row actions provide Start, Stop, Kill, Restart, and Logs without leaving the table. Use this tab when you need a dense list rather than card layout, or when comparing CPU and memory across dozens of entries at once.
+## Inspect processes and bring them into view
 
-![Overview tab — sortable fleet table](assets/overview-table.png)
+The **Processes** workspace shows what is actually running on the host, including processes outside the managed fleet. Search, sorting and a tree view help identify a busy application and understand which processes belong together.
 
-## System resources
+Managed entries are highlighted. **+ Monitor** provides a route to bring an existing workload into the service workspace, reducing the effort of registering something already running. Termination controls support deliberate cleanup when a process needs to be stopped.
 
-The **Resources** tab answers whether the **host** is healthy, not just whether individual apps respond. A per-tab auto-refresh selector (1s / 2s / 5s / 10s / Off) and **Refresh now** control sit above the layout; a last-updated timestamp confirms data freshness.
+![Process inspection workspace](assets/processes.png)
 
-The top **CPU** panel spans full width: total utilization, 1/5/15 load averages, core count, temperature when the OS exposes it, and a **per-core mini-bar grid** for every logical CPU. Optional mini history charts (toggle in Settings) plot CPU, memory, disk I/O, and network RX over recent samples.
+## Follow logs while taking action
 
-Four cards below cover **Memory** (used, total, available, swap), **Disk** (root usage, free space, read/write rates per second, extra mount points when present), **Network** (RX/TX rates, cumulative totals, TCP connection count, active listening ports, per-interface breakdown when enabled), and **Services** (managed running/stopped totals plus fleet-wide auto and manual restart counts).
+The **Logs** workspace keeps investigation beside service control. Select an application, read its output and narrow the view to warnings or errors. Start, stop and restart controls remain available while following the selected service.
 
-A **Service CPU/MEM Usage** table at the bottom ranks managed services by live CPU%, memory, PID, and uptime — sortable columns for spotting hot processes during incidents.
+Pause and autoscroll make it practical to switch between watching new output and reading a particular failure. Search helps locate relevant text, while copy and download controls make it easier to share findings or keep an incident record.
 
-![Resources tab — host CPU, memory, disk, and network](assets/resources.png)
+This shortens a common troubleshooting loop: find the affected service, inspect the failure, make the necessary correction and check its next start from one place.
 
-## Processes
+![Service logs with filtering and lifecycle controls](assets/logs.png)
 
-The **Processes** tab is a browser-side **htop** over the whole machine, fed from the background cache so refreshes stay non-blocking. Columns include **PID**, **USER**, **NI**, **VIRT**, **RES**, **CPU%**, **MEM%**, process **state** (R/S/D/Z), **thread count**, and full **command line**. Click any header to sort; type in the filter box to narrow by process name or user. Toggle **🌳 Tree** for a parent/child process tree view.
+## Manage containers alongside applications
 
-Rows belonging to USM-managed services are **highlighted**. Unmanaged processes expose **+ Monitor**, which opens the add-service modal pre-filled from the running command so you can adopt a stray process into `services.yaml` without hand-editing blind. A separate **Kill** action on arbitrary PIDs is available for one-off cleanup (with confirmation when enabled).
+The **Docker** workspace brings container workloads into the same daily routine as the rest of the fleet. Inspect state, resource use, exposed ports and recent output, then act on the selected container without opening a separate container manager.
 
-To find a rogue process, sort by **CPU%** and spot an unknown `python3` hogging a core → read PID, click **+ Monitor**, name it, save — it appears on the Services grid next boot with auto-restart policy.
+Image browsing, restart policies and command execution support deeper investigation. Network and volume views help explain a container's surroundings, while image and cleanup controls assist routine maintenance.
 
-![Processes tab — live process list with + Monitor](assets/processes.png)
+**Compose** controls address applications made up of several containers. Discover available projects, inspect their output and use project-level actions when the task concerns the whole stack. Confirmation and result messages help keep the scope of an operation visible.
 
-## Log monitor
+![Containers and their operational details](assets/docker.png)
 
-The **Logs** tab replaces SSH `tail -f` for fleet triage. Pick any managed service from the dropdown; the view streams the service log file (or systemd journal where applicable) with color-coded levels — **ERROR** red, **WARN** yellow, **INFO** blue, **DEBUG** grey. Level filter buttons (**ALL / ERR / WARN / INFO**) hide noise during incidents.
+## Work with native services
 
-While watching logs you can **Start**, **Stop**, or **Restart** the selected service from the toolbar. **Auto-scroll** follows new lines; **Pause** freezes the buffer for reading; **Clear** wipes the on-screen view without touching the file. **Download** saves the log; **Copy** puts visible lines on the clipboard. A search box highlights matching text in the buffer. Log refresh rate, max lines kept, timestamp display, and default auto-scroll are configurable under Settings.
+The **Systemd** workspace covers native system and user services. Search and scope filters make it easier to find the relevant unit, check whether it is active and control its lifecycle.
 
-After a deploy, pick the service from the dropdown, set filter to **ERR**, pause auto-scroll when you find the stack trace, fix config in the **Config** tab, **Restart** from the log toolbar, switch filter to **ALL** to watch a clean boot line.
+Boot enablement and journal access sit beside service actions, connecting the immediate problem with the service's longer-term behaviour. Existing units can also be brought into the managed fleet, keeping frequently used workloads accessible from the main workspace.
 
-![Logs tab — streaming log tail with filters](assets/logs.png)
+![Native services and boot controls](assets/systemd.png)
 
-## Docker
+## Know what starts with the machine
 
-The **Docker** tab manages containers alongside YAML-defined processes — useful when part of the stack runs in Docker without a USM service entry. The toolbar refreshes the container list, filters by name/image, supports **running only**, and shows running/total counts.
+The **Startup** workspace gathers boot-related information that would otherwise require checking several places. Native services, managed applications, scheduled startup jobs and other available boot mechanisms can be reviewed together.
 
-The main table columns are **ID**, **Name**, **Image**, **Status**, live **CPU%** and **Memory** from `docker stats`, **port mappings**, **size**, and per-row **Start / Stop / Restart**. Resizable columns help on wide screens. Batch **Stop All** and **Start All** select running or stopped containers from the loaded inventory and present the target names for confirmation. **Pull** accepts an `image:tag` to fetch an image. Expanding a container exposes inspection details, restart policy editing, command execution and log access.
+Filters help focus on important or managed entries. This is useful before maintenance and after adding an application: check how it is expected to return after a reboot and whether its startup behaviour matches the intended role.
 
-Sub-panels open from the toolbar:
+## Keep network administration close at hand
 
-- **Images** — browse local images, refresh, delete unused tags
-- **Compose** — discover `docker-compose.yml` / `compose.yaml` files, run **up**, **down**, **build**, **pull**, **restart**, and tail compose logs
-- **Networks** — inspect driver, subnet and connected containers; **Volumes** — inspect usage and remove eligible unused volumes
-- **Prune** — remove stopped containers
+The **Firewall** workspace offers a view of firewall state and rules alongside the applications they affect. Inspect allowed or blocked traffic, adjust policies and maintain rules without leaving the dashboard.
 
-An inline log panel streams `docker logs` with timestamps for the selected container. **Exec** runs a command inside a running container from the UI. Docker auto-refresh interval is configurable (5s–60s). When the Docker daemon is unreachable, the tab shows a clear error instead of a blank table.
+Rule controls and recent firewall logs help investigate connectivity problems. Privacy preferences can obscure sensitive network information during demonstrations or screen sharing. Availability and permitted actions depend on the host's firewall setup.
 
-API container healthy but cache sidecar stale → filter containers, open inline logs on the Redis/nginx container, **Restart** it, then confirm port mapping in the expanded row. A compose project failed → **Compose** sub-panel → **Up** on the stack, **Logs** tail until all services report running.
+## Check connections and move files
 
-![Docker tab — containers, images, and compose stacks](assets/docker.png)
+The **Connections** workspace reduces the friction around remote administration. Review configured destinations, check reachability and see whether the expected connection identities are available before spending time troubleshooting a transfer.
 
-## Systemd
+A two-pane file browser puts local and remote directories side by side. Navigate folders, copy in either direction, upload or download files and follow transfer progress. Directory and removal controls cover routine file management within the same workspace.
 
-The **Systemd** tab lists native **system** and **user** units with filters for scope, text search, and **running only**. Columns cover unit name, active state, sub-state, **autostart** (enabled/disabled), description, and actions: **Start**, **Stop**, **Restart**, **Enable/Disable** autostart, **📝 Journal**, and **+ Monitor** to import an unmonitored unit into `services.yaml` as a `systemd`-type USM entry.
+Connection inventory, key information and tooling status help keep access organised. Explicit key-deployment and connection-sync controls support setup tasks when those changes are needed.
 
-Selecting **Journal** opens a bottom panel with configurable line count (50–500), refresh, and close — `journalctl` output without leaving the dashboard. Managed units already in USM are marked so you do not duplicate entries.
+## Maintain the service registry
 
-![Systemd tab — unit list with autostart toggles](assets/systemd.png)
+The **Config** workspace gives experienced operators one place to review and update service definitions. Validation helps catch configuration problems before applying an edit, and visible feedback makes the result easier to assess.
 
-## Startup
+An add-service form offers a more guided route for common additions. Together, these controls reduce the need to leave the dashboard for routine fleet maintenance while preserving direct access to the configuration when a more specific change is required.
 
-The **Startup** tab maps **what runs at boot** across several mechanisms — valuable before maintenance windows or when onboarding a new daemon. Refresh reloads all sections; text filter and **Crucial only** / **USM managed** checkboxes narrow the view.
+## Make repeated problems easier to investigate
 
-Sections include:
+The **Debug** workspace collects health summaries, active resource alerts, restart leaders and recent action results. It helps identify patterns such as one application repeatedly failing or a resource threshold being exceeded.
 
-- **Systemd — enabled at boot** — units with `enabled` or `static` autostart (system + user), with enable/disable actions
-- **USM services** — entries from `services.yaml` and whether `auto_restart` will bring them back after the manager starts
-- **Cron @reboot** — lines from user crontab, root crontab, and `/etc/crontab`
-- **Systemd timers** — scheduled timers that may fire soon after boot
-- **rc.local / legacy** — preview of classic boot scripts when present
+Event details add context to the current service state. Instead of relying only on whether a card is green now, the operator can review recent actions and failures to decide what needs a closer look.
 
+## Shape the workspace around the routine
 
+**Settings** lets the dashboard adapt to the person using it. Choose a theme and density, adjust cards and charts, set preferred update behaviour and decide which details remain visible.
 
-## Firewall
+Log preferences, resource alerts, notifications and confirmation prompts support different working styles. Privacy options help during screen sharing, while preference export and import make it easier to carry a familiar layout to another browser.
 
-The **Firewall** tab edits **UFW** from the browser when UFW is installed. If missing, an install prompt can run `apt-get install ufw` from the UI. The status bar shows whether the firewall is active, a master **Enabled** toggle, default **incoming/outgoing** policies (allow/deny), and actions to add, edit, delete, reorder, or **reset all** rules (with confirmation).
+These choices make a frequently used administration screen more comfortable and reduce repetitive setup.
 
-The rules table lists action (ALLOW/DENY), port/protocol, source, and direction. **Add Rule** supports port or application profile, TCP/UDP/both, source CIDR or `Anywhere`, and comment text; rules can be **moved up/down** in the chain before commit. A **Firewall Log** panel streams recent UFW deny/block lines for quick triage. Settings can **blur sensitive ports and IPs** when demonstrating the dashboard remotely — useful for screen shares without exposing internal network detail.
+![Dashboard preferences, alerts and display controls](assets/settings.png)
 
-## Connections and file transfers
+## Less switching in everyday operations
 
-The **Connections** tab brings SSH inventory, reachability and file handling into the operational dashboard. Host rows show the configured alias, destination, user, port and identity-file availability. SSH probes display success or a short error with elapsed time; a separate TCP probe helps distinguish an unreachable port from an SSH authentication problem.
+A typical investigation can begin with a stopped service in the grid, continue through its logs and resource usage, and end with a targeted restart and a health check. Container, native-service and connection tools remain nearby when the cause lies outside the application itself.
 
-Supporting panels list local public-key fingerprints, authorised keys, known hosts, connection helper scripts, network interfaces and the default route. GitHub tooling and Git identity status provide an additional readiness check when administering repositories from the host. These panels help establish which connection configuration is available before attempting a transfer.
+Automatic recovery supports eligible services that stop unexpectedly, while deliberate stops keep maintenance under the operator's control. A command-line interface also supports terminal-based work when a browser is unnecessary.
 
-The two-pane file browser navigates local and selected remote directories. Directories open through navigation controls or double-click, while rows expose file type, size and modification date. Operators select an entry and copy in either direction, monitor transfer progress, upload from the browser, download a file, create a directory or remove a selected entry after confirmation.
-
-Public-key deployment appends a selected local public key to the remote host's authorised keys after operator confirmation. Connection-bundle synchronization has its own action and reports per-target results. These operations change remote state and remain explicit controls rather than background effects of opening a directory.
-
-## Config editor
-
-The **Config** tab is a full-height **YAML editor** for `services.yaml`. Toolbar shows the active file path and line count. **Reload** discards unsaved edits and re-reads disk; **Validate** checks YAML structure and confirms a top-level `services` map; **Save & Apply** writes the file and reloads the in-memory fleet without restarting the USM process. Validation and save errors surface inline above the editor. A configuration reload changes the manager's registry; review the Services view and explicitly restart only entries whose running command needs replacement. Use this when adding `auto_restart`, `restart_delay`, `max_restarts`, `depends_on`, `group`, `env_file`, or `user_service` flags — then confirm behaviour on the Services grid.
-
-## Debug and events
-
-The **Debug** tab supports post-mortems after deploys or auto-restart storms. Four summary panels at the top show **service health** (stopped and high-restart entries), **active alerts** (CPU/memory threshold breaches from Settings), **dashboard info** (version, uptime, cache ages), and **restart leaders** (services with the highest auto-restart counts).
-
-Below, an **Event Log** ring buffer (up to 10,000 entries) lists every start, stop, kill, restart, auto-restart, config save, firewall change, and docker action with timestamp, success/fail, duration in milliseconds, and expandable stderr for failures. **Refresh** pulls the latest; **Clear** wipes the in-memory buffer. Events also push over SSE when the tab is open.
-
-## Settings
-
-The **Settings** tab controls dashboard UX; every toggle auto-saves to **localStorage** and can be **exported/imported as JSON** or reset to factory defaults.
-
-| Section | What you configure |
-|---------|-------------------|
-| Appearance | Dark/light theme, default tab on load, compact mode, tooltips, service path on cards, full vs short status badges, card button padding, title font size, firewall privacy blur, card width slider, uptime format, CPU/MEM decimal places |
-| Grid View | Sparklines on/off and height, grouping and group headers, running-only default, double-click-opens-logs, active group list |
-| Log Monitor | Default auto-scroll, timestamps, max lines in view, poll rate (200ms–5s) |
-| Resources | Mini history charts, per-network-interface cards |
-| Docker | Auto-refresh on/off, interval (5s–60s) |
-| Polling | Global status refresh (0.5s–10s), pause when browser tab hidden |
-| Alerts | CPU and per-service memory thresholds with enable toggles |
-| Notifications | Browser push permission, notify on auto-restart or unintentional stop, optional alert sound |
-| Safety | Confirm dialogs before stop, kill, or docker stop |
-
-![Settings tab — dashboard preferences and alerts](assets/settings.png)
-
-## Managed service types
-
-| Type | Typical use |
-|------|-------------|
-| `python` | FastAPI, Flask, or scripts via `python3` and optional venv path in `command` |
-| `node` | Node SSR, bundlers, or tooling via `node` |
-| `bash` | Watchers, chain monitors, glue scripts |
-| `systemd` | Proxy control for existing units (`command` = unit name; `user_service` for `--user` scope) |
-| `exec` | Arbitrary command lines split into argv |
-
-Docker workloads are operated from the Docker tab even when not declared as YAML services. YAML fields such as `port`, `working_dir`, `args`, `env_file`, `group`, `depends_on`, `auto_restart`, `restart_delay`, and `max_restarts` tune how each entry starts and recovers.
-
-A top-level `settings:` block in `services.yaml` can set `dashboard_port`, `dashboard_password`, and `log_retention_days` without editing Python. Optional password protection shows a login modal; successful login issues a session token (Bearer header or HttpOnly cookie) used by the dashboard's protected requests. The dashboard is an administrative surface and should be exposed through a trusted network or access-controlled gateway.
-
-USM targets mixed Linux fleets. The registry preserves the command, working directory, environment and recovery policy for each service; group labels make related applications easier to operate together.
-
-## CLI (headless operations)
-
-The `usm.py` entrypoint mirrors dashboard actions for scripts and SSH-only sessions:
-
-| Command | Behaviour |
-|---------|-----------|
-| `dashboard [port]` | Start the web UI (default port from YAML or built-in default) |
-| `start <name\|all>` | Start one service or entire fleet |
-| `stop <name\|all> [--force]` | Graceful stop or force kill |
-| `restart <name\|all>` | Stop then start |
-| `status [name]` | Print running/stopped table |
-| `logs <name> [-f] [-n lines]` | Tail file log (`-f` follow) |
-| `list` | Enumerate configured services and types |
-| `reload` | Re-read `services.yaml` without restart |
-| `edit` | Open config in `$EDITOR` |
-| `monitor` | Terminal watch mode |
-
-## Operational workflows
-
-### Investigate a stopped or repeatedly restarting service
-
-Start with the service card's status and separate automatic/manual restart counters. Open **Logs** for that service, filter **ERR** or **WARN**, and pause the view to inspect the relevant output. **Debug** adds event results and restart leaders; **Resources** distinguishes an application failure from host pressure.
-
-Use **Stop** when the application should remain down during maintenance. After reviewing its command or configuration, start the affected service and check its new PID, status and logs. Group and fleet controls support broader maintenance, while individual actions keep the intervention scoped.
-
-### Introduce a new application or existing daemon
-
-Use **Add** for a new command, or **+ Monitor** from Processes or Systemd to prepare an entry from something already present. Review its name, runtime type, working directory, group and recovery options before saving. Dependency labels on cards expose the current state of referenced services.
-
-Then check the registry in **Config**, the service in **Services**, and the relevant boot mechanism in **Startup**. Dependency chips provide visibility; startup ordering follows the implementation's registry operations rather than a documented dependency scheduler.
-
-### Diagnose a container or remote connection
-
-In **Docker**, inspect the selected container's state, ports, restart policy and recent output before choosing a lifecycle action. Compose controls address a whole discovered project, while container controls address an individual workload. Output panels retain the result of the selected operation for inspection.
-
-For remote work, use **Connections** to check the configured identity and TCP/SSH reachability first. Choose the remote host and verify both directory paths before a copy. Progress and result messages expose whether the transfer completed or requires another attempt.
-
-### Carry dashboard preferences between browsers
-
-Export the Settings JSON before moving to another browser profile, then import it to restore presentation, polling and confirmation preferences. These are browser preferences; the service registry and the host's running processes remain separate operational state.
+The central benefit is a shorter path from noticing a problem to understanding and resolving it: one familiar workspace for tasks that previously lived across several tools.
 
 ---
 

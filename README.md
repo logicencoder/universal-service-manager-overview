@@ -1,6 +1,6 @@
 # Universal Service Manager
 
-![Service management workspace](assets/services-grid.png)
+![Service management workspace](assets/universal-service-manager-services-grid.png)
 
 Managing a growing collection of applications can turn a simple check into a round of terminal sessions, log searches and separate administration tools. Universal Service Manager grew out of that daily frustration: the available tools did not fit the way its creator wanted to work, so a single workspace was built around those needs.
 
@@ -31,7 +31,7 @@ The **Overview** table presents the same fleet in a denser layout. It is useful 
 
 Lifecycle controls remain available beside each row, so identifying a problem and acting on it stay in the same workspace. Summary counts make it easier to check the overall fleet after maintenance.
 
-![Fleet overview and service actions](assets/overview-table.png)
+![Fleet overview and service actions](assets/universal-service-manager-overview-table.png)
 
 ## Understand where resources are going
 
@@ -41,7 +41,7 @@ Per-core activity and recent trends provide context beyond a single percentage. 
 
 Choose an update rate appropriate to the investigation or refresh on demand. This keeps the information useful during an incident without requiring another monitoring tool for a quick diagnosis.
 
-![Host resources and application usage](assets/resources.png)
+![Host resources and application usage](assets/universal-service-manager-resources.png)
 
 ## Inspect processes and bring them into view
 
@@ -49,7 +49,7 @@ The **Processes** workspace shows what is actually running on the host, includin
 
 Managed entries are highlighted. **+ Monitor** provides a route to bring an existing workload into the service workspace, reducing the effort of registering something already running. Termination controls support deliberate cleanup when a process needs to be stopped.
 
-![Process inspection workspace](assets/processes.png)
+![Process inspection workspace](assets/universal-service-manager-processes.png)
 
 ## Follow logs while taking action
 
@@ -59,7 +59,7 @@ Pause and autoscroll make it practical to switch between watching new output and
 
 This shortens a common troubleshooting loop: find the affected service, inspect the failure, make the necessary correction and check its next start from one place.
 
-![Service logs with filtering and lifecycle controls](assets/logs.png)
+![Service logs with filtering and lifecycle controls](assets/universal-service-manager-logs.png)
 
 ## Manage containers alongside applications
 
@@ -69,7 +69,7 @@ Image browsing, restart policies and command execution support deeper investigat
 
 **Compose** controls address applications made up of several containers. Discover available projects, inspect their output and use project-level actions when the task concerns the whole stack. Confirmation and result messages help keep the scope of an operation visible.
 
-![Containers and their operational details](assets/docker.png)
+![Containers and their operational details](assets/universal-service-manager-docker.png)
 
 ## Work with native services
 
@@ -77,7 +77,7 @@ The **Systemd** workspace covers native system and user services. Search and sco
 
 Boot enablement and journal access sit beside service actions, connecting the immediate problem with the service's longer-term behaviour. Existing units can also be brought into the managed fleet, keeping frequently used workloads accessible from the main workspace.
 
-![Native services and boot controls](assets/systemd.png)
+![Native services and boot controls](assets/universal-service-manager-systemd.png)
 
 ## Know what starts with the machine
 
@@ -119,7 +119,7 @@ Log preferences, resource alerts, notifications and confirmation prompts support
 
 These choices make a frequently used administration screen more comfortable and reduce repetitive setup.
 
-![Dashboard preferences, alerts and display controls](assets/settings.png)
+![Dashboard preferences, alerts and display controls](assets/universal-service-manager-settings.png)
 
 ## Less switching in everyday operations
 
